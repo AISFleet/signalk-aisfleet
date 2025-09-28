@@ -1,0 +1,37 @@
+{
+  "name": "aisfleet",
+  "version": "1.0.0",
+  "description": "AIS Fleet - Signal K plugin to monitor AIS vessels and submit them to an API at configurable intervals",
+  "main": "plugin/index.js",
+  "keywords": [
+    "signalk",
+    "signalk-node-server-plugin",
+    "signalk-webapp",
+    "signalk-category-ais",
+    "ais",
+    "vessels",
+    "tracking",
+    "aisfleet"
+  ],
+  "author": "Ilker Temir",
+  "license": "Apache-2.0",
+  "signalk-plugin-enabled-by-default": true,
+  "signalk": {
+    "appIcon": "./assets/icons/icon.svg",
+    "displayName": "AIS Fleet"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itemir/signalk-marinehub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itemir/signalk-marinehub/issues"
+  },
+  "homepage": "https://github.com/itemir/signalk-marinehub#readme"
+}
