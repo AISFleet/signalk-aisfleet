@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Constants
 const API_BASE_URL = 'https://aisfleet.com/api/';
-const API_ENDPOINT = 'vessels/report';
+const API_ENDPOINT = 'vessels/report/';
 const API_URL = API_BASE_URL + API_ENDPOINT;
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
@@ -168,13 +168,25 @@ module.exports = (app) => {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
-    // Filter out old vessels (haven't been updated in 24 hours)
+    // Filter out old vessels and invalid vessels
     const activeVessels = Array.from(vesselData.values()).filter(vessel => {
       const age = now - vessel.lastUpdate;
       if (age > maxAge) {
         vesselData.delete(vessel.id);
         return false;
       }
+
+      // Filter out vessels with invalid IDs
+      if (!vessel.id || vessel.id === 'undefined' || vessel.id === 'null') {
+        vesselData.delete(vessel.id);
+        return false;
+      }
+
+      // Filter out vessels with no useful data
+      if (!vessel.data || Object.keys(vessel.data).length === 0) {
+        return false;
+      }
+
       return true;
     });
 
@@ -186,7 +198,7 @@ module.exports = (app) => {
     // Get self vessel information
     const selfContext = app.getSelfPath('');
     const selfUuid = app.selfId || null;
-    const selfMmsi = app.getSelfPath('mmsi') ? app.getPath(app.getSelfPath('mmsi')) : null;
+    const selfMmsi = app.getSelfPath('mmsi') ? app.getSelfPath('mmsi').replace('vessels.self.', '') : null;
 
     const payload = {
       timestamp: new Date().toISOString(),
@@ -214,7 +226,7 @@ module.exports = (app) => {
       timeout: REQUEST_TIMEOUT
     };
 
-    app.debug(`Submitting ${activeVessels.length} vessels to API`);
+    app.debug(`Submitting ${activeVessels.length} vessels to API (self: ${payload.self.uuid}, mmsi: ${payload.self.mmsi})`);
 
     try {
       const response = await axios(requestConfig);
@@ -222,8 +234,13 @@ module.exports = (app) => {
     } catch (error) {
       if (error.response) {
         app.error(`API request failed with status ${error.response.status}: ${error.response.statusText}`);
+        if (error.response.data) {
+          app.error('API Error Details:', JSON.stringify(error.response.data, null, 2));
+        }
+        app.error('Failed Request Payload:', JSON.stringify(payload, null, 2));
       } else if (error.request) {
         app.error('API request timeout or network error');
+        app.error('Failed Request Payload:', JSON.stringify(payload, null, 2));
       } else {
         app.error('Failed to prepare API request:', error.message);
       }

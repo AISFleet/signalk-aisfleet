@@ -29,10 +29,11 @@ This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identi
 ### Data Flow
 1. Subscribe to all Signal K contexts using subscription manager (`context: '*'`)
 2. Filter for vessel contexts (`vessels.*`) in delta handler
-3. Process delta updates with throttling and deduplication
-4. Maintain vessel state with change detection
-5. Periodically aggregate and submit data to external API
-6. Handle errors and logging throughout
+3. Process delta updates with throttling (2-second minimum per vessel)
+4. Maintain vessel state with change detection and data validation
+5. Filter out invalid vessels (undefined IDs, empty data)
+6. Periodically aggregate and submit clean data to external API
+7. Handle errors with detailed logging and payload dumping
 
 ## Development Commands
 
@@ -81,6 +82,18 @@ const vesselSubscription = {
   }]
 };
 ```
+
+### Data Validation and Filtering
+- Filters out vessels with invalid IDs (`undefined`, `null`, empty)
+- Removes vessels with no useful data (empty `data` objects)
+- Throttles updates to prevent duplicate processing
+- Auto-removes stale vessels (>24 hours old)
+
+### Error Handling and Logging
+- Concise debug logs during normal operation
+- Detailed error logs with full payload dump on API failures
+- Proper HTTP status code and error message reporting
+- Request timeout handling (30 seconds)
 
 ## Testing and Deployment
 

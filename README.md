@@ -1,4 +1,4 @@
-# MarineHub
+# AIS Fleet
 
 A Signal K plugin that monitors AIS vessels, displays them on an interactive web map, and submits their data to an external API at configurable intervals.
 
@@ -24,7 +24,7 @@ A Signal K plugin that monitors AIS vessels, displays them on an interactive web
 ### Via Signal K App Store (Recommended)
 1. Open your Signal K server admin interface
 2. Navigate to **App Store**
-3. Search for "MarineHub"
+3. Search for "AIS Fleet"
 4. Click **Install**
 
 ### Manual Installation
@@ -32,11 +32,11 @@ A Signal K plugin that monitors AIS vessels, displays them on an interactive web
 2. Clone or download this plugin:
    ```bash
    cd ~/.signalk/node_modules
-   git clone https://github.com/itemir/signalk-marinehub.git
+   git clone https://github.com/itemir/signalk-aisfleet.git
    ```
 3. Install dependencies:
    ```bash
-   cd signalk-marinehub
+   cd signalk-aisfleet
    npm install
    ```
 4. Restart your Signal K server
@@ -44,8 +44,8 @@ A Signal K plugin that monitors AIS vessels, displays them on an interactive web
 ### Development Installation
 ```bash
 # Clone the repository
-git clone https://github.com/itemir/signalk-marinehub.git
-cd signalk-marinehub
+git clone https://github.com/itemir/signalk-aisfleet.git
+cd signalk-aisfleet
 
 # Install dependencies
 npm install
@@ -53,7 +53,7 @@ npm install
 # Link to your Signal K server
 npm link
 cd ~/.signalk
-npm link signalk-marinehub
+npm link signalk-aisfleet
 
 # Restart Signal K server
 ```
@@ -62,7 +62,7 @@ npm link signalk-marinehub
 
 1. Open Signal K server admin interface
 2. Navigate to **Server → Plugin Config**
-3. Find "MarineHub" and click **Configure**
+3. Find "AIS Fleet" and click **Configure**
 4. Set the optional configuration:
 
 ### Configuration Settings
@@ -76,7 +76,7 @@ npm link signalk-marinehub
 The plugin provides a web-based map interface accessible through the Signal K server:
 
 1. **Access the Map**: Navigate to your Signal K server's web interface
-2. **Find MarineHub**: Look for "MarineHub AIS Tracker" in the web apps section
+2. **Find AIS Fleet**: Look for "AIS Fleet Tracker" in the web apps section
 3. **View Vessels**: The map displays all AIS vessels with color-coded icons
 4. **Map Initialization**: Starts with world view showing global vessel traffic, then smoothly pans to your vessel's location
 
@@ -120,7 +120,7 @@ The plugin provides a web-based map interface accessible through the Signal K se
 
 ## API Data Format
 
-The plugin submits optimized vessel data as JSON POST requests to `https://marinehub.ai/api/vessels/report`.
+The plugin submits optimized vessel data as JSON POST requests to `https://aisfleet.com/api/vessels/report/`.
 
 **Timestamp Optimization**: Individual data fields no longer include redundant timestamps. Timing information is provided via:
 - Main payload `timestamp` (when report was generated)
@@ -170,14 +170,14 @@ This reduces payload size significantly while maintaining essential timing infor
 ### Request Headers
 
 - `Content-Type: application/json`
-- `User-Agent: SignalK-MarineHub/1.0.0`
+- `User-Agent: SignalK-AISFleet/1.0.0`
 
 ## Troubleshooting
 
 ### Enable Debug Logging
 1. In Signal K admin interface, go to **Server → Settings**
 2. Enable "Enable Debug Log"
-3. Or set environment variable: `DEBUG=signalk:plugin:marinehub`
+3. Or set environment variable: `DEBUG=signalk:plugin:aisfleet`
 
 ### Common Issues
 
@@ -187,7 +187,7 @@ This reduces payload size significantly while maintaining essential timing infor
 - Ensure plugin is enabled and started
 
 **API submission failures**:
-- Check network connectivity to marinehub.ai
+- Check network connectivity to aisfleet.com
 - Review server logs for detailed error messages
 - Verify Signal K server has valid self identification (MMSI/UUID)
 
@@ -197,8 +197,8 @@ This reduces payload size significantly while maintaining essential timing infor
 
 ### Log Messages
 
-- `Starting MarineHub plugin`: Plugin initialization
-- `Updated vessel X with N updates`: Vessel data received
+- `Starting AIS Fleet plugin`: Plugin initialization
+- `Updated vessel X with N new values`: Vessel data received
 - `Submitting N vessels to API`: API submission attempt
 - `Successfully submitted vessel data`: Successful API call
 - `API request failed`: Check API endpoint and authentication
@@ -226,7 +226,7 @@ This reduces payload size significantly while maintaining essential timing infor
 npm install
 
 # Run with debug logging
-DEBUG=signalk:plugin:marinehub npm start
+DEBUG=signalk:plugin:aisfleet npm start
 ```
 
 ## Contributing
