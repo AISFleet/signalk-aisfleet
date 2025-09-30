@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Constants
-const API_BASE_URL = 'https://marinehub.ai/api/';
+const API_BASE_URL = 'https://aisfleet.com/api/';
 const API_ENDPOINT = 'vessels/report';
 const API_URL = API_BASE_URL + API_ENDPOINT;
 const REQUEST_TIMEOUT = 30000; // 30 seconds
