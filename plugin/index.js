@@ -26,25 +26,31 @@ module.exports = (app) => {
       const intervalMinutes = Math.min(Math.max(settings.intervalMinutes || 5, 1), 15);
       app.debug(`Using interval: ${intervalMinutes} minutes`);
 
-      // Subscribe to all vessel data
-      const subscription = {
-        context: 'vessels.*',
-        subscribe: [
-          {
-            path: '*',
-            period: 1000,
-            minPeriod: 1000,
-            format: 'delta',
-            policy: 'instant'
-          }
-        ]
+      // Subscribe to all vessel data using proper subscription manager pattern
+      const vesselSubscription = {
+        context: '*', // Subscribe to all contexts
+        subscribe: [{
+          path: '*', // Subscribe to all paths
+          period: 5000 // Update every 5 seconds
+        }]
       };
 
       app.subscriptionmanager.subscribe(
-        subscription,
+        vesselSubscription,
         unsubscribes,
-        (delta) => handleVesselUpdate(delta),
-        (err) => app.error('Subscription error:', err)
+        (error) => {
+          if (error) {
+            app.error('Vessel subscription error:', error);
+          } else {
+            app.debug('Successfully subscribed to vessel data');
+          }
+        },
+        (delta) => {
+          // Only process vessel contexts
+          if (delta.context && delta.context.startsWith('vessels.')) {
+            handleVesselUpdate(delta);
+          }
+        }
       );
 
       // Start periodic API submission
@@ -97,20 +103,27 @@ module.exports = (app) => {
     const vesselId = contextMatch[1];
     const selfContext = app.getSelfPath('');
 
-    // Always include own vessel data
-
     // Initialize vessel data if not exists
     if (!vesselData.has(vesselId)) {
       vesselData.set(vesselId, {
         id: vesselId,
         context: delta.context,
-        lastUpdate: Date.now(),
+        lastUpdate: 0,
         data: {}
       });
     }
 
     const vessel = vesselData.get(vesselId);
-    vessel.lastUpdate = Date.now();
+
+    const currentTime = Date.now();
+
+    // Throttle updates per vessel (max once every 2 seconds)
+    if (vessel.lastUpdate && (currentTime - vessel.lastUpdate) < 2000) {
+      return;
+    }
+
+    vessel.lastUpdate = currentTime;
+    let updateCount = 0;
 
     // Process updates
     delta.updates.forEach(update => {
@@ -118,15 +131,23 @@ module.exports = (app) => {
 
       update.values.forEach(value => {
         if (value.path && value.value !== undefined) {
-          vessel.data[value.path] = {
-            value: value.value,
-            source: update.source
-          };
+          // Check if the value actually changed
+          const currentData = vessel.data[value.path];
+          if (!currentData || JSON.stringify(currentData.value) !== JSON.stringify(value.value)) {
+            vessel.data[value.path] = {
+              value: value.value,
+              source: update.source,
+              timestamp: update.timestamp || currentTime
+            };
+            updateCount++;
+          }
         }
       });
     });
 
-    app.debug(`Updated vessel ${vesselId} with ${delta.updates.length} updates`);
+    if (updateCount > 0) {
+      app.debug(`Updated vessel ${vesselId} with ${updateCount} new values (paths: ${Object.keys(vessel.data).join(', ')})`);
+    }
   }
 
   function startPeriodicSubmission(intervalMinutes) {

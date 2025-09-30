@@ -17,19 +17,22 @@ This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identi
 - Plugin follows Signal K plugin conventions with start/stop lifecycle and schema configuration
 
 ### Key Components
-- **Vessel Data Collection**: Subscribes to `vessels.*` context to monitor all AIS vessels
+- **Vessel Data Collection**: Uses Signal K subscription manager with proper context filtering
 - **Data Management**: Maintains in-memory map of vessel data, auto-removes stale data (>24h)
 - **Web Interface**: Interactive Leaflet.js map showing vessels with real-time updates
 - **WebSocket Integration**: Real-time vessel updates via Signal K WebSocket stream
 - **Vessel Classification**: Color-coded icons based on AIS vessel type
 - **Periodic Submission**: Configurable timer (1-15 minutes) for API submissions
 - **HTTP Client**: Uses axios for REST API communication
+- **Update Throttling**: Prevents duplicate processing with 2-second vessel update throttling
 
 ### Data Flow
-1. Subscribe to Signal K vessel data streams
-2. Process delta updates and maintain vessel state
-3. Periodically aggregate and submit data to external API
-4. Handle errors and logging throughout
+1. Subscribe to all Signal K contexts using subscription manager (`context: '*'`)
+2. Filter for vessel contexts (`vessels.*`) in delta handler
+3. Process delta updates with throttling and deduplication
+4. Maintain vessel state with change detection
+5. Periodically aggregate and submit data to external API
+6. Handle errors and logging throughout
 
 ## Development Commands
 
@@ -54,16 +57,30 @@ Own vessel data is always included for identification purposes.
 
 ## Built-in Configuration
 
-- **API Endpoint**: Fixed to `https://marinehub.ai/api/vessels/report`
+- **API Endpoint**: Fixed to `https://aisfleet.com/api/vessels/report`
 - **Authentication**: No API key - uses self MMSI and UUID for identification
 - **Request Timeout**: Fixed at 30 seconds
 
 ## Signal K Integration
 
-- Subscribes to vessel data using `app.subscriptionmanager`
+- Subscribes to all contexts using `app.subscriptionmanager.subscribe()` with `context: '*'`
+- Filters for vessel contexts (`vessels.*`) in delta handler
 - Processes delta format updates with timestamp and source information
+- Implements throttling (2-second minimum between vessel updates)
+- Value change detection to avoid processing duplicate data
 - Accesses Signal K app context for self-vessel identification
 - Uses Signal K logging (`app.debug`, `app.error`) for consistent output
+
+### Subscription Pattern
+```javascript
+const vesselSubscription = {
+  context: '*',           // All contexts
+  subscribe: [{
+    path: '*',            // All paths
+    period: 5000          // 5-second updates
+  }]
+};
+```
 
 ## Testing and Deployment
 

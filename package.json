@@ -1,7 +1,7 @@
 {
   "name": "aisfleet",
   "version": "1.0.0",
-  "description": "AIS Fleet - Signal K plugin to monitor AIS vessels and submit them to an API at configurable intervals",
+  "description": "Monitor vessels within 100 nm through community AIS data and strengthen the network by contributing",
   "main": "plugin/index.js",
   "keywords": [
     "signalk",
@@ -17,7 +17,7 @@
   "license": "Apache-2.0",
   "signalk-plugin-enabled-by-default": true,
   "signalk": {
-    "appIcon": "./assets/icons/icon.svg",
+    "appIcon": "./assets/icons/logo.png",
     "displayName": "AIS Fleet"
   },
   "engines": {
