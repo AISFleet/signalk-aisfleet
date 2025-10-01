@@ -18,22 +18,37 @@ This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identi
 
 ### Key Components
 - **Vessel Data Collection**: Uses Signal K subscription manager with proper context filtering
+- **Cloud Vessel Integration**: Fetches nearby vessels from AIS Fleet API (100nm radius)
 - **Data Management**: Maintains in-memory map of vessel data, auto-removes stale data (>24h)
 - **Web Interface**: Interactive Leaflet.js map showing vessels with real-time updates
 - **WebSocket Integration**: Real-time vessel updates via Signal K WebSocket stream
 - **Vessel Classification**: Color-coded icons based on AIS vessel type
-- **Periodic Submission**: Configurable timer (1-15 minutes) for API submissions
+- **Periodic Operations**: Configurable timer (1-15 minutes) for API submissions and cloud vessel fetching
 - **HTTP Client**: Uses axios for REST API communication
 - **Update Throttling**: Prevents duplicate processing with 2-second vessel update throttling
+- **Delta Injection**: Selective injection of navigation data to Signal K for cloud vessels
 
 ### Data Flow
+
+#### Local AIS Data
 1. Subscribe to all Signal K contexts using subscription manager (`context: '*'`)
 2. Filter for vessel contexts (`vessels.*`) in delta handler
 3. Process delta updates with throttling (2-second minimum per vessel)
 4. Maintain vessel state with change detection and data validation
 5. Filter out invalid vessels (undefined IDs, empty data)
-6. Periodically aggregate and submit clean data to external API
-7. Handle errors with detailed logging and payload dumping
+
+#### Cloud Vessel Integration
+1. Periodically fetch nearby vessels from AIS Fleet API (100nm radius)
+2. Process cloud vessel data with timestamp comparison against local data
+3. Convert cloud data to Signal K format with proper value objects
+4. Inject only navigation data (position, speed, course) via Signal K deltas
+5. Store cloud vessels in plugin memory with `isCloudVessel` flag
+6. Apply throttling (100ms delay every 50 vessels) to prevent WebSocket flooding
+
+#### API Submission
+1. Aggregate both local and cloud vessels for submission
+2. Submit data in batches of 100 vessels to external API
+3. Handle errors with detailed logging and continue processing
 
 ## Development Commands
 
@@ -53,14 +68,18 @@ cd ~/.signalk && npm link aisfleet
 
 The plugin uses JSON Schema for configuration:
 - `intervalMinutes`: Submission interval (1-15 min, default 5)
+- `radiusNauticalMiles`: Cloud vessel fetch radius (10-100 nm, default 100)
 
 Own vessel data is always included for identification purposes.
 
 ## Built-in Configuration
 
-- **API Endpoint**: Fixed to `https://aisfleet.com/api/vessels/report`
+- **API Endpoints**:
+  - Submission: `https://aisfleet.com/api/vessels/report`
+  - Nearby vessels: `https://aisfleet.com/api/vessels/nearby`
 - **Authentication**: No API key - uses self MMSI and UUID for identification
 - **Request Timeout**: Fixed at 30 seconds
+- **Cloud Vessel Radius**: Configurable (10-100 nautical miles, default 100)
 
 ## Signal K Integration
 
@@ -88,12 +107,19 @@ const vesselSubscription = {
 - Removes vessels with no useful data (empty `data` objects)
 - Throttles updates to prevent duplicate processing
 - Auto-removes stale vessels (>24 hours old)
+- Prevents injection of problematic static data (names) that cause schema conflicts
+
+### Cloud Vessel Delta Injection
+- **Selective Field Injection**: Only injects changing navigation data (position, speed, course, heading, mmsi)
+- **Avoids Static Fields**: Skips vessel names, design info, and other static data to prevent Signal K schema errors
+- **Throttled Processing**: 100ms delay every 50 vessels to prevent WebSocket flooding
+- **Proper Signal K Format**: Converts cloud data to Signal K value objects with timestamp and source
 
 ### Error Handling and Logging
-- Concise debug logs during normal operation
-- Detailed error logs with full payload dump on API failures
-- Proper HTTP status code and error message reporting
-- Request timeout handling (30 seconds)
+- Minimal, focused debug logs showing key operations
+- API query logging with parameters for debugging
+- Error categorization (server errors vs network errors)
+- Graceful handling of Signal K schema conflicts
 
 ## Testing and Deployment
 

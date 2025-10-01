@@ -1,23 +1,43 @@
-# AIS Fleet
+# AIS Fleet - Signal K Plugin
 
-A Signal K plugin that monitors AIS vessels, displays them on an interactive web map, and submits their data to an external API at configurable intervals.
+**Expand your maritime awareness beyond your AIS receiver's range**
 
-## Features
+AIS Fleet integrates cloud-sourced vessel data with your local AIS, giving you a comprehensive view of maritime traffic up to 100 nautical miles around your position.
 
-- **Real-time AIS Monitoring**: Tracks all available AIS vessels in the Signal K data stream
-- **Interactive Web Map**: Leaflet.js-based map with multiple layers (street map + satellite imagery)
-- **Advanced Vessel Classification**: Intelligent AIS ship type detection with distinct vessel categories
-- **Closeable Vessel Types Window**: Close and re-open the vessel types legend with dedicated buttons
-- **Clickable Category Filtering**: Toggle vessel types on/off by clicking legend items
-- **Directional Vessel Icons**: Moving vessels show as arrows with heading, stationary vessels as circles
-- **Maritime Coordinate Display**: Proper navigation notation (DD°MM.mmm'N/S/E/W format)
-- **Detailed Vessel Information**: Click any vessel for popup with comprehensive vessel details
-- **Live Data Updates**: WebSocket connection provides real-time vessel movement
-- **Optimized Data Handling**: Simplified data structure without flattening for better performance
-- **Configurable Intervals**: Submit data every 1-15 minutes (default: 5 minutes)
-- **Automatic Data Management**: Removes vessels that haven't been updated in 24 hours
-- **API Integration**: Submits optimized vessel data to MarineHub.ai for analysis
-- **Self Identification**: Own vessel data is always included for server identification
+## 🌊 Key Features
+
+### **See Over the Horizon**
+- **Local AIS**: Real-time vessels from your AIS receiver (typically 20-30nm range)
+- **Cloud AIS**: Community-sourced vessel data from up to 100nm radius
+- **Combined View**: All vessels displayed together on an interactive map
+- **Signal K Integration**: Cloud vessels appear in your Signal K data store alongside local AIS
+
+### **Easy Visualization**
+- **Interactive Web Map**: Real-time vessel positions with color-coded icons
+- **Vessel Details**: Click any vessel for name, MMSI, speed, course, and dimensions
+- **Live Updates**: Automatic position updates via WebSocket
+- **Mobile Friendly**: Responsive design works on all devices
+
+### **Community Powered**
+- **Share & Receive**: Contribute your AIS data to help other mariners
+- **Global Network**: Access vessel data from mariners worldwide
+- **Configurable Range**: Choose your cloud data radius (10-100 nautical miles)
+
+## 🚀 Quick Start
+
+1. **Install** the plugin through Signal K App Store
+2. **Configure** submission interval and cloud radius in Plugin Config
+3. **Open** the web interface from Signal K's webapp section
+4. **See** both local and cloud vessels on the interactive map
+
+## ⚠️ Important Safety Notice
+
+**THIS PLUGIN IS FOR SITUATIONAL AWARENESS ONLY**
+
+- **Not for navigation**: Do not use this data for collision avoidance or navigation decisions
+- **Not real-time**: Cloud data may be delayed or incomplete
+- **Supplement only**: Use alongside proper radar, AIS receiver, and visual lookout
+- **Local AIS priority**: Always trust your direct AIS receiver over cloud data
 
 ## Installation
 
@@ -67,182 +87,64 @@ npm link signalk-aisfleet
 
 ### Configuration Settings
 
-- **Submit Interval**: How often to submit data (1-15 minutes, default: 5)
+- **Submit Interval**: How often to share your data (1-15 minutes, default: 5)
+- **Cloud Radius**: Range for fetching nearby vessels (10-100 nautical miles, default: 100)
 
 *Note: Own vessel data is always included in submissions for identification purposes.*
 
-## Web Interface
+## 🗺️ Web Interface
 
-The plugin provides a web-based map interface accessible through the Signal K server:
+Access the interactive map through your Signal K server:
 
-1. **Access the Map**: Navigate to your Signal K server's web interface
-2. **Find AIS Fleet**: Look for "AIS Fleet Tracker" in the web apps section
-3. **View Vessels**: The map displays all AIS vessels with color-coded icons
-4. **Map Initialization**: Starts with world view showing global vessel traffic, then smoothly pans to your vessel's location
+1. **Open** Signal K admin interface
+2. **Click** "AIS Fleet" in the webapps section
+3. **View** all vessels (local + cloud) on the map
+4. **Click** any vessel for detailed information
 
 ### Map Features
 
-- **Dynamic Vessel Icons**:
-  - Moving vessels: Directional arrows showing heading
-  - Stationary vessels: Small colored circles (SOG < 0.5 knots)
-- **Closeable Vessel Types Legend**: Use the close button (×) to hide the legend, then click "Show Vessel Types" to reopen
-- **Clickable Legend Filtering**: Click any vessel type in the legend to show/hide that category
-- **Enhanced Color Coding**: Distinct colors for all vessel types:
-  - 🔵 Blue: Pleasure craft
-  - 🔴 Dark Red: Sailing vessels
-  - 🔴 Red: Cargo vessels
-  - 🟠 Dark Orange: Tankers
-  - 🟠 Orange: Passenger vessels
-  - 🟢 Teal: Fishing vessels
-  - ⚫ Dark Blue-Gray: Military vessels
-  - 🔘 Dark Gray: Law enforcement
-  - 🔘 Medium Gray: Pilot vessels
-  - 🟣 Purple: Tug boats
-  - 🔘 Gray: Other vessels
-  - 🔘 Light Gray: Unknown types
-  - 🟢 Green: Own vessel
+- **Color-Coded Vessels**: Different colors for cargo, fishing, pleasure, tanker, etc.
+- **Directional Icons**: Moving vessels show heading arrows, stationary vessels show circles
+- **Vessel Details**: Click any vessel for name, MMSI, position, speed, and dimensions
+- **Filter by Type**: Show/hide different vessel categories
+- **Real-Time Updates**: Vessels move as new data arrives
+- **Multiple Views**: Switch between street map and satellite imagery
 
-- **Interactive Popups**: Click any vessel to see:
-  - Vessel name and MMSI
-  - Current position in maritime notation (37°46.494'N / 122°25.164'W)
-  - Course over ground (COG) - only if available
-  - Speed over ground (SOG) - only if available
-  - Heading - only if available
-  - Vessel dimensions (length, beam, draft) - if available
-  - Vessel type and call sign
-  - Last update time
+## 🔄 How It Works
 
-- **Multiple Map Layers**: Switch between OpenStreetMap and Satellite View via layer control
-- **Smart Initialization**: Starts with world view, then smoothly pans to own vessel location
-- **Real-time Updates**: Vessels move in real-time as new AIS data arrives
-- **Smart Display**: Unknown navigation values are hidden instead of showing "Unknown"
-- **Layer Control**: Top-right control allows switching between map and satellite imagery
+1. **Collect**: Your local AIS data flows through Signal K
+2. **Share**: Plugin periodically submits your data to the community
+3. **Receive**: Fetch nearby vessels from the cloud (within your configured radius)
+4. **Display**: All vessels appear together in Signal K and the web map
+5. **Update**: Real-time position updates keep everything current
 
-## API Data Format
+## 🌐 Community Network
 
-The plugin submits optimized vessel data as JSON POST requests to `https://aisfleet.com/api/vessels/report/`.
+By using AIS Fleet, you become part of a collaborative network of mariners sharing AIS data. Your contributions help create a comprehensive picture of maritime traffic for everyone.
 
-**Timestamp Optimization**: Individual data fields no longer include redundant timestamps. Timing information is provided via:
-- Main payload `timestamp` (when report was generated)
-- Per-vessel `lastUpdate` (when vessel was last seen)
+## 📋 Requirements
 
-This reduces payload size significantly while maintaining essential timing information.
+- Signal K server (Node.js version)
+- Internet connection for cloud data
+- Optional: AIS receiver for local data contribution
 
-```json
-{
-  "timestamp": "2025-01-15T10:30:00.000Z",
-  "self": {
-    "uuid": "urn:mrn:signalk:uuid:12345678-1234-1234-1234-123456789012",
-    "mmsi": "123456789",
-    "context": "vessels.self"
-  },
-  "vessels": [
-    {
-      "id": "urn:mrn:imo:mmsi:123456789",
-      "context": "vessels.urn:mrn:imo:mmsi:123456789",
-      "lastUpdate": "2025-01-15T10:29:45.000Z",
-      "data": {
-        "navigation.position": {
-          "value": {
-            "latitude": 37.7749,
-            "longitude": -122.4194
-          },
-          "source": "ais.0"
-        },
-        "navigation.courseOverGround": {
-          "value": 1.57,
-          "source": "ais.0"
-        },
-        "navigation.speedOverGround": {
-          "value": 5.14,
-          "source": "ais.0"
-        },
-        "name": {
-          "value": "VESSEL NAME",
-          "source": "ais.0"
-        }
-      }
-    }
-  ]
-}
-```
+## 🛠️ Troubleshooting
 
-### Request Headers
+**No vessels appearing on map**:
+- Ensure plugin is enabled in Signal K Plugin Config
+- Check internet connection for cloud data
+- Verify AIS data is available in Signal K Data Browser
 
-- `Content-Type: application/json`
-- `User-Agent: SignalK-AISFleet/1.0.0`
+**Map not loading**:
+- Access through Signal K admin interface → Webapps → AIS Fleet
+- Check browser console for errors
+- Try refreshing the page
 
-## Troubleshooting
+**Need help?**
+- Check Signal K server logs for error messages
+- Visit Signal K community forums
+- Report issues on the GitHub repository
 
-### Enable Debug Logging
-1. In Signal K admin interface, go to **Server → Settings**
-2. Enable "Enable Debug Log"
-3. Or set environment variable: `DEBUG=signalk:plugin:aisfleet`
+---
 
-### Common Issues
-
-**No vessels appearing**:
-- Verify AIS data is being received by Signal K
-- Check that vessels appear in the Data Browser
-- Ensure plugin is enabled and started
-
-**API submission failures**:
-- Check network connectivity to aisfleet.com
-- Review server logs for detailed error messages
-- Verify Signal K server has valid self identification (MMSI/UUID)
-
-**High memory usage**:
-- Plugin automatically removes vessels older than 24 hours
-- Consider reducing submission interval for busy areas
-
-### Log Messages
-
-- `Starting AIS Fleet plugin`: Plugin initialization
-- `Updated vessel X with N new values`: Vessel data received
-- `Submitting N vessels to API`: API submission attempt
-- `Successfully submitted vessel data`: Successful API call
-- `API request failed`: Check API endpoint and authentication
-
-## Development
-
-### Project Structure
-```
-/
-├── plugin/
-│   └── index.js          # Main plugin code
-├── public/
-│   ├── index.html        # Web interface
-│   ├── app.js           # Frontend JavaScript
-│   └── assets/
-│       └── icons/        # Plugin icons
-├── package.json          # Plugin metadata and dependencies
-├── README.md            # This file
-└── CLAUDE.md            # Development notes
-```
-
-### Testing
-```bash
-# Install development dependencies
-npm install
-
-# Run with debug logging
-DEBUG=signalk:plugin:aisfleet npm start
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-Apache 2.0 License - see LICENSE file for details.
-
-## Support
-
-- **Issues**: Report bugs or feature requests on GitHub
-- **Documentation**: Signal K plugin development guide
-- **Community**: Signal K Slack or forums
+*Part of the Signal K ecosystem - Open source data exchange for marine applications*

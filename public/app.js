@@ -266,6 +266,11 @@ class MarineHubApp {
                 lastUpdate: Date.now()
             };
             this.vessels.set(vesselId, vessel);
+
+            // Debug: Track new vessels from WebSocket
+            if (Math.random() < 0.1) { // Only log 10% to avoid spam
+                console.log(`New vessel from WebSocket: ${vesselId}, total vessels: ${this.vessels.size}`);
+            }
         }
 
         // Process delta updates - merge into existing data and find the latest actual data timestamp
@@ -644,8 +649,14 @@ class MarineHubApp {
     }
 
     updateVesselCount() {
-        const count = this.vessels.size;
-        document.getElementById('vesselCount').textContent = `${count} vessel${count !== 1 ? 's' : ''}`;
+        // Count only vessels that have markers (are displayed on map)
+        let visibleCount = 0;
+        this.vessels.forEach(vessel => {
+            if (vessel.marker) {
+                visibleCount++;
+            }
+        });
+        document.getElementById('vesselCount').textContent = `${visibleCount} vessel${visibleCount !== 1 ? 's' : ''} on map (${this.vessels.size} total)`;
     }
 
     updateStatus(message, connected) {
