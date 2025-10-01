@@ -20,11 +20,8 @@ module.exports = (app) => {
     start: (pluginSettings, restartPlugin) => {
       settings = pluginSettings;
 
-      app.debug('Starting AIS Fleet plugin with settings:', settings);
-
       // Set default interval if not provided
       const intervalMinutes = Math.min(Math.max(settings.intervalMinutes || 5, 1), 15);
-      app.debug(`Using interval: ${intervalMinutes} minutes`);
 
       // Subscribe to all vessel data using proper subscription manager pattern
       const vesselSubscription = {
@@ -41,8 +38,6 @@ module.exports = (app) => {
         (error) => {
           if (error) {
             app.error('Vessel subscription error:', error);
-          } else {
-            app.debug('Successfully subscribed to vessel data');
           }
         },
         (delta) => {
@@ -55,13 +50,9 @@ module.exports = (app) => {
 
       // Start periodic API submission
       startPeriodicSubmission(intervalMinutes);
-
-      app.debug('AIS Fleet plugin started successfully');
     },
 
     stop: () => {
-      app.debug('Stopping AIS Fleet plugin');
-
       // Clear timer
       if (timer) {
         clearInterval(timer);
@@ -74,8 +65,6 @@ module.exports = (app) => {
 
       // Clear vessel data
       vesselData.clear();
-
-      app.debug('AIS Fleet plugin stopped');
     },
 
     schema: () => ({
@@ -145,9 +134,6 @@ module.exports = (app) => {
       });
     });
 
-    if (updateCount > 0) {
-      app.debug(`Updated vessel ${vesselId} with ${updateCount} new values (paths: ${Object.keys(vessel.data).join(', ')})`);
-    }
   }
 
   function startPeriodicSubmission(intervalMinutes) {
@@ -157,11 +143,76 @@ module.exports = (app) => {
       try {
         await submitVesselData();
       } catch (error) {
-        app.error('Failed to submit vessel data:', error.message);
+        app.error('Failed to submit vessel data:', error.message || error);
+        if (error.stack) {
+          app.error('Error stack:', error.stack);
+        }
       }
     }, intervalMs);
 
-    app.debug(`Started periodic submission every ${intervalMinutes} minutes`);
+  }
+
+  function cleanVesselData(vessel) {
+    const cleanData = {};
+    for (const [path, pathData] of Object.entries(vessel.data)) {
+      if (pathData && pathData.value !== null && pathData.value !== undefined) {
+        // Only include essential navigation data
+        if (path.startsWith('navigation.') || path.startsWith('design.') || path === 'name') {
+          cleanData[path] = {
+            value: pathData.value,
+            timestamp: pathData.timestamp
+          };
+        }
+      }
+    }
+
+    return {
+      id: vessel.id,
+      context: vessel.context,
+      lastUpdate: new Date(vessel.lastUpdate).toISOString(),
+      data: cleanData
+    };
+  }
+
+  async function submitBatch(vessels, batchNumber, totalBatches) {
+    const selfUuid = app.selfId || null;
+    let selfMmsi = null;
+
+    try {
+      const mmsiValue = app.getSelfPath('mmsi');
+      if (mmsiValue) {
+        selfMmsi = mmsiValue;
+      }
+    } catch (error) {
+      if (selfUuid && selfUuid.includes('mmsi:')) {
+        selfMmsi = selfUuid.split('mmsi:')[1];
+      }
+    }
+
+    const payload = {
+      timestamp: new Date().toISOString(),
+      self: {
+        uuid: selfUuid,
+        mmsi: selfMmsi
+      },
+      vessels: vessels.map(cleanVesselData)
+    };
+
+    const requestConfig = {
+      method: 'POST',
+      url: API_URL,
+      data: payload,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'SignalK-AISFleet/1.0.0'
+      },
+      timeout: REQUEST_TIMEOUT
+    };
+
+    app.debug(`Batch ${batchNumber}/${totalBatches}: ${vessels.length} vessels`);
+
+    const response = await axios(requestConfig);
+    app.debug(`Batch ${batchNumber} successful. Status: ${response.status}`);
   }
 
   async function submitVesselData() {
@@ -191,60 +242,38 @@ module.exports = (app) => {
     });
 
     if (activeVessels.length === 0) {
-      app.debug('No active vessels to submit');
       return;
     }
 
-    // Get self vessel information
-    const selfContext = app.getSelfPath('');
-    const selfUuid = app.selfId || null;
-    const selfMmsi = app.getSelfPath('mmsi') ? app.getSelfPath('mmsi').replace('vessels.self.', '') : null;
+    // Submit in batches of 100
+    const batchSize = 100;
+    const totalBatches = Math.ceil(activeVessels.length / batchSize);
 
-    const payload = {
-      timestamp: new Date().toISOString(),
-      self: {
-        uuid: selfUuid,
-        mmsi: selfMmsi,
-        context: selfContext
-      },
-      vessels: activeVessels.map(vessel => ({
-        id: vessel.id,
-        context: vessel.context,
-        lastUpdate: new Date(vessel.lastUpdate).toISOString(),
-        data: vessel.data
-      }))
-    };
+    for (let i = 0; i < totalBatches; i++) {
+      const start = i * batchSize;
+      const end = start + batchSize;
+      const batch = activeVessels.slice(start, end);
 
-    const requestConfig = {
-      method: 'POST',
-      url: API_URL,
-      data: payload,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'SignalK-AISFleet/1.0.0'
-      },
-      timeout: REQUEST_TIMEOUT
-    };
+      try {
+        await submitBatch(batch, i + 1, totalBatches);
 
-    app.debug(`Submitting ${activeVessels.length} vessels to API (self: ${payload.self.uuid}, mmsi: ${payload.self.mmsi})`);
-
-    try {
-      const response = await axios(requestConfig);
-      app.debug(`Successfully submitted vessel data. Status: ${response.status}`);
-    } catch (error) {
-      if (error.response) {
-        app.error(`API request failed with status ${error.response.status}: ${error.response.statusText}`);
-        if (error.response.data) {
-          app.error('API Error Details:', JSON.stringify(error.response.data, null, 2));
+        // Small delay between batches to avoid overwhelming the API
+        if (i < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        app.error('Failed Request Payload:', JSON.stringify(payload, null, 2));
-      } else if (error.request) {
-        app.error('API request timeout or network error');
-        app.error('Failed Request Payload:', JSON.stringify(payload, null, 2));
-      } else {
-        app.error('Failed to prepare API request:', error.message);
+      } catch (error) {
+        if (error.response) {
+          app.error(`Batch ${i + 1} failed with status ${error.response.status}: ${error.response.statusText}`);
+          if (error.response.data) {
+            app.error('API Error Details:', JSON.stringify(error.response.data, null, 2));
+          }
+        } else if (error.request) {
+          app.error(`Batch ${i + 1} timeout or network error`);
+        } else {
+          app.error(`Batch ${i + 1} prepare error:`, error.message);
+        }
+        // Continue with next batch rather than stopping everything
       }
-      throw error;
     }
   }
 
