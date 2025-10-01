@@ -656,7 +656,7 @@ class MarineHubApp {
                 visibleCount++;
             }
         });
-        document.getElementById('vesselCount').textContent = `${visibleCount} vessel${visibleCount !== 1 ? 's' : ''} on map (${this.vessels.size} total)`;
+        document.getElementById('vesselCount').textContent = `${visibleCount} vessels on map`;
     }
 
     updateStatus(message, connected) {

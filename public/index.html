@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIS Fleet - Vessel Tracker</title>
+    <title>AIS Fleet</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -25,26 +25,34 @@
         }
 
         .header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 1rem;
+            background-color: rgba(223, 227, 230, 0.2);
+            color: #122431;
+            padding: 0.25rem 1rem;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
         }
 
         .header h1 {
             margin: 0;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            color: #568bad;
+            flex: 1;
+        }
+
+        .logo {
+            height: 48px;
+            width: auto;
         }
 
         .status {
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
+            font-size: 0.75rem;
         }
 
         .status-indicator {
@@ -201,6 +209,9 @@
             background: rgba(255,255,255,0.1);
             padding: 0.25rem 0.5rem;
             border-radius: 4px;
+            font-size: 1rem;
+            font-weight: normal;
+            color: #568bad;
         }
     </style>
 </head>
@@ -208,13 +219,13 @@
     <div id="app">
         <div class="header">
             <h1>
-                <span>🚢</span>
-                AIS Fleet - Vessel Tracker
-                <div class="vessel-count" id="vesselCount">0 vessels</div>
+                <img src="assets/icons/logo_transparent.png" alt="AIS Fleet Logo" class="logo">
+                AIS Fleet
             </h1>
-            <div class="status">
+            <div class="vessel-count" id="vesselCount">0 vessels</div>
+            <div style="display: none;">
                 <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">Connecting to Signal K...</span>
+                <span id="statusText"></span>
                 <span id="lastUpdate"></span>
             </div>
         </div>

@@ -2,7 +2,6 @@
   "name": "aisfleet",
   "version": "1.0.0",
   "description": "Monitor vessels within 100 nm through community AIS data and strengthen the network by contributing",
-  "main": "plugin/index.js",
   "keywords": [
     "signalk",
     "signalk-node-server-plugin",
@@ -13,25 +12,31 @@
     "tracking",
     "aisfleet"
   ],
-  "author": "Ilker Temir",
-  "license": "Apache-2.0",
-  "signalk-plugin-enabled-by-default": true,
-  "signalk": {
-    "appIcon": "./assets/icons/logo.png",
-    "displayName": "AIS Fleet"
+  "homepage": "https://github.com/AISFleet/signalk-aisfleet#readme",
+  "bugs": {
+    "url": "https://github.com/AISFleet/signalk-aisfleet/issues"
   },
-  "engines": {
-    "node": ">=14.0.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AISFLeet/signalk-aisfleet.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Ilker Temir",
+  "type": "commonjs",
+  "main": "plugin/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "axios": "^1.6.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/itemir/signalk-marinehub.git"
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
   },
-  "bugs": {
-    "url": "https://github.com/itemir/signalk-marinehub/issues"
-  },
-  "homepage": "https://github.com/itemir/signalk-marinehub#readme"
+  "signalk-plugin-enabled-by-default": true,
+  "signalk": {
+    "appIcon": "./assets/icons/logo.png",
+    "displayName": "AIS Fleet"
+  }
 }
