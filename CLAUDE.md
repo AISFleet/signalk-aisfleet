@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identification System) vessels, displays them on an interactive web map, and submits their data to an external API at configurable intervals. Signal K is an open-source data exchange format for marine use.
+This is a Signal K plugin called "AIS Fleet" that connects mariners to a global community sharing AIS vessel data. It integrates cloud-sourced vessel information with local AIS, displays them on an interactive web map, and contributes to the community dataset at aisfleet.com. The plugin also supports AI-powered vessel queries through an MCP server. Signal K is an open-source data exchange format for marine use.
 
 ## Architecture
 
@@ -17,8 +17,10 @@ This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identi
 - Plugin follows Signal K plugin conventions with start/stop lifecycle and schema configuration
 
 ### Key Components
+- **Community Integration**: Connects to global mariner network at aisfleet.com
 - **Vessel Data Collection**: Uses Signal K subscription manager with proper context filtering
 - **Cloud Vessel Integration**: Fetches nearby vessels from AIS Fleet API (100nm radius)
+- **AI Query Support**: Enables natural language vessel queries through MCP server
 - **Data Management**: Maintains in-memory map of vessel data, auto-removes stale data (>24h)
 - **Web Interface**: Interactive Leaflet.js map showing vessels with real-time updates
 - **WebSocket Integration**: Real-time vessel updates via Signal K WebSocket stream
@@ -39,14 +41,23 @@ This is a Signal K plugin called "AIS Fleet" that monitors AIS (Automatic Identi
 
 #### Cloud Vessel Integration
 1. Periodically fetch nearby vessels from AIS Fleet API (100nm radius)
-2. Process cloud vessel data with timestamp comparison against local data
-3. Convert cloud data to Signal K format with proper value objects
-4. Inject only navigation data (position, speed, course) via Signal K deltas
-5. Store cloud vessels in plugin memory with `isCloudVessel` flag
-6. Apply throttling (100ms delay every 50 vessels) to prevent WebSocket flooding
+2. Process cloud vessel data with timestamp comparison against existing cloud data
+3. **Data Source Priority**: Local Signal K data always takes precedence over cloud data
+4. Skip cloud vessels if corresponding local vessel exists (`vesselData.has(vesselId)`)
+5. Convert cloud data to Signal K format with proper value objects using actual navigation timestamps
+6. Store cloud vessels separately in `cloudVesselData` with `isCloudVessel` flag
+7. Apply throttling (100ms delay every 50 vessels) to prevent WebSocket flooding
+
+#### Vessel Transition Logic (Cloud to Local)
+1. **Cloud vessel exists first**: Stored in `cloudVesselData`, displayed on map
+2. **Local AIS data arrives**: Creates entry in `vesselData` via delta handler
+3. **Automatic promotion**: Cloud vessel automatically removed from `cloudVesselData` when local data appears
+4. **Future cloud fetches**: Skip vessel entirely since local data exists
+5. **Frontend priority**: Signal K vessels loaded first, cloud vessels only added if not already present
+6. **Real-time updates**: WebSocket deltas immediately update local vessel data, cloud refresh skips local vessels
 
 #### API Submission
-1. Aggregate both local and cloud vessels for submission
+1. Aggregate only local vessels for submission (cloud vessels filtered out to prevent loops)
 2. Submit data in batches of 100 vessels to external API
 3. Handle errors with detailed logging and continue processing
 
@@ -77,7 +88,6 @@ Own vessel data is always included for identification purposes.
 - **API Endpoints**:
   - Submission: `https://aisfleet.com/api/vessels/report`
   - Nearby vessels: `https://aisfleet.com/api/vessels/nearby`
-- **Authentication**: No API key - uses self MMSI and UUID for identification
 - **Request Timeout**: Fixed at 30 seconds
 - **Cloud Vessel Radius**: Configurable (10-100 nautical miles, default 100)
 
@@ -107,13 +117,16 @@ const vesselSubscription = {
 - Removes vessels with no useful data (empty `data` objects)
 - Throttles updates to prevent duplicate processing
 - Auto-removes stale vessels (>24 hours old)
+- **Vessel Priority Management**: Local AIS data always overrides cloud data
+- **Cloud-to-Local Transitions**: Automatic promotion when local data becomes available
 - Prevents injection of problematic static data (names) that cause schema conflicts
 
-### Cloud Vessel Delta Injection
-- **Selective Field Injection**: Only injects changing navigation data (position, speed, course, heading, mmsi)
-- **Avoids Static Fields**: Skips vessel names, design info, and other static data to prevent Signal K schema errors
-- **Throttled Processing**: 100ms delay every 50 vessels to prevent WebSocket flooding
-- **Proper Signal K Format**: Converts cloud data to Signal K value objects with timestamp and source
+### Cloud Vessel Data Management
+- **Separate Storage**: Cloud vessels stored in `cloudVesselData` map, local vessels in `vesselData` map
+- **Timestamp Accuracy**: Uses actual navigation timestamps from cloud API, not processing time
+- **Data Source Tracking**: All cloud data marked with `source: 'aisfleet-cloud'`
+- **Automatic Cleanup**: Cloud vessels removed when corresponding local data arrives
+- **Frontend Integration**: Web interface respects data source priority (local > cloud)
 
 ### Error Handling and Logging
 - Minimal, focused debug logs showing key operations

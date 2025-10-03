@@ -14,8 +14,8 @@ module.exports = (app) => {
   let unsubscribes = [];
   let settings = {};
   let radiusNm = 100; // Default radius in nautical miles
-  let vesselData = new Map();
-  let cloudVessels = new Set(); // Track vessels from cloud to avoid submitting them back
+  let vesselData = new Map(); // Signal K vessels only
+  let cloudVesselData = new Map(); // Cloud vessels only - separate storage
   let lastUndefinedLog = 0; // Track when we last logged undefined vessel warnings
 
   const plugin = {
@@ -61,6 +61,23 @@ module.exports = (app) => {
 
       // Start periodic nearby vessels fetch
       startPeriodicNearbyFetch(intervalMinutes);
+
+      // Add HTTP endpoint for cloud vessels
+      app.get('/plugins/aisfleet/cloud-vessels', (req, res) => {
+        try {
+          const cloudVessels = Array.from(cloudVesselData.values());
+          const responseData = {};
+
+          cloudVessels.forEach(vessel => {
+            responseData[vessel.id] = vessel.data;
+          });
+
+          res.json(responseData);
+        } catch (error) {
+          app.error('Error serving cloud vessels:', error);
+          res.status(500).json({ error: 'Failed to retrieve cloud vessels' });
+        }
+      });
     },
 
     stop: () => {
@@ -80,7 +97,7 @@ module.exports = (app) => {
 
       // Clear vessel data
       vesselData.clear();
-      cloudVessels.clear();
+      cloudVesselData.clear();
     },
 
     schema: () => ({
@@ -134,6 +151,12 @@ module.exports = (app) => {
         lastUpdate: 0,
         data: {}
       });
+
+      // If we had this vessel as cloud data, remove it since local data takes precedence
+      if (cloudVesselData.has(vesselId)) {
+        cloudVesselData.delete(vesselId);
+        app.debug(`Promoted vessel ${vesselId} from cloud to local data`);
+      }
     }
 
     const vessel = vesselData.get(vesselId);
@@ -178,7 +201,17 @@ module.exports = (app) => {
       try {
         await submitVesselData();
       } catch (error) {
-        app.error('Failed to submit vessel data:', error.message || error);
+        if (error.response?.status) {
+          app.error(`Failed to submit vessel data: HTTP ${error.response.status} - ${error.response.statusText || 'Unknown error'}`);
+          if (error.response.data) {
+            app.error(`Response data: ${JSON.stringify(error.response.data)}`);
+          }
+        } else if (error.code) {
+          app.error(`Failed to submit vessel data: ${error.code} - ${error.message}`);
+        } else {
+          app.error('Failed to submit vessel data:', error.message || 'Unknown error');
+          app.error(`Error details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
+        }
         if (error.stack) {
           app.error('Error stack:', error.stack);
         }
@@ -243,7 +276,9 @@ module.exports = (app) => {
       timeout: REQUEST_TIMEOUT
     };
 
-    app.debug(`Submitting ${vessels.length} vessels`);
+    app.debug(`Submitting ${vessels.length} vessels to ${API_URL}`);
+    app.debug(`Payload self: ${JSON.stringify(payload.self)}`);
+    app.debug(`First vessel sample: ${JSON.stringify(payload.vessels[0] || 'none')}`);
     const response = await axios(requestConfig);
   }
 
@@ -256,14 +291,14 @@ module.exports = (app) => {
       const age = now - vessel.lastUpdate;
       if (age > maxAge) {
         vesselData.delete(vessel.id);
-        cloudVessels.delete(vessel.id); // Clean up cloud vessels tracking too
+        cloudVesselData.delete(vessel.id); // Clean up cloud vessels tracking too
         return false;
       }
 
       // Filter out vessels with invalid IDs
       if (!vessel.id || vessel.id === 'undefined' || vessel.id === 'null' || vessel.id.includes('undefined')) {
         vesselData.delete(vessel.id);
-        cloudVessels.delete(vessel.id);
+        cloudVesselData.delete(vessel.id);
         return false;
       }
 
@@ -273,7 +308,7 @@ module.exports = (app) => {
       }
 
       // Filter out cloud vessels to prevent submission loops
-      if (cloudVessels.has(vessel.id) || vessel.isCloudVessel) {
+      if (cloudVesselData.has(vessel.id) || vessel.isCloudVessel) {
         return false;
       }
 
@@ -303,9 +338,20 @@ module.exports = (app) => {
         }
       } catch (error) {
         if (error.response?.status >= 500) {
-          app.debug(`Submission batch ${i + 1} server error: ${error.response.status}`);
+          app.error(`Submission batch ${i + 1} server error: ${error.response.status}`);
+          if (error.response.data) {
+            app.error(`Server response: ${JSON.stringify(error.response.data)}`);
+          }
+        } else if (error.response?.status) {
+          app.error(`Submission batch ${i + 1} HTTP error: ${error.response.status} - ${error.response.statusText || 'Unknown'}`);
+          if (error.response.data) {
+            app.error(`Error response: ${JSON.stringify(error.response.data)}`);
+          }
+        } else if (error.code) {
+          app.error(`Submission batch ${i + 1} failed: ${error.code} - ${error.message}`);
         } else {
-          app.debug(`Submission batch ${i + 1} failed: ${error.message}`);
+          app.error(`Submission batch ${i + 1} failed: ${error.message || 'Unknown error'}`);
+          app.error(`Error details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
         }
         // Continue with next batch rather than stopping everything
       }
@@ -332,6 +378,7 @@ module.exports = (app) => {
     // Get self position
     const position = getSelfPosition();
     if (!position) {
+      app.debug('No self position available for nearby vessels fetch');
       return;
     }
 
@@ -351,8 +398,11 @@ module.exports = (app) => {
     }
 
     if (!selfMmsi && !selfUuid) {
+      app.debug('No MMSI or UUID available for nearby vessels fetch');
       return;
     }
+
+    app.debug(`Fetching nearby vessels from position ${position.latitude},${position.longitude} with MMSI=${selfMmsi}, UUID=${selfUuid}`);
 
     // Build request parameters
     const params = new URLSearchParams({
@@ -378,7 +428,7 @@ module.exports = (app) => {
     };
 
     try {
-      app.debug(`Fetching nearby vessels (radius: ${radiusNm}nm)`);
+      app.debug(`Fetching nearby vessels from URL: ${requestConfig.url}`);
       const response = await axios(requestConfig);
       const data = response.data;
 
@@ -398,7 +448,7 @@ module.exports = (app) => {
 
             const vesselId = `urn:mrn:imo:mmsi:${mmsi}`;
             const hasLocal = vesselData.has(vesselId);
-            const isCloudData = hasLocal && (vesselData.get(vesselId).isCloudVessel || cloudVessels.has(vesselId));
+            const isCloudData = hasLocal && (vesselData.get(vesselId).isCloudVessel || cloudVesselData.has(vesselId));
             const status = hasLocal ? (isCloudData ? 'cloud' : 'local') : 'new';
 
           });
@@ -411,8 +461,16 @@ module.exports = (app) => {
         app.debug('Nearby vessels: access denied');
       } else if (error.response?.status >= 500) {
         app.debug(`Nearby vessels: server error (${error.response.status})`);
+      } else if (error.response?.status) {
+        app.debug(`Nearby vessels: HTTP ${error.response.status} - ${error.response.statusText || 'Unknown error'}`);
+        if (error.response.data) {
+          app.debug(`Response data: ${JSON.stringify(error.response.data)}`);
+        }
+      } else if (error.code) {
+        app.debug(`Nearby vessels: ${error.code} - ${error.message}`);
       } else {
-        app.debug(`Nearby vessels failed: ${error.message}`);
+        app.debug(`Nearby vessels failed: ${error.message || 'Unknown error'}`);
+        app.debug(`Error details: ${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
       }
       throw error;
     }
@@ -450,20 +508,11 @@ module.exports = (app) => {
       const vesselId = `urn:mrn:imo:mmsi:${mmsi}`;
       const context = `vessels.${vesselId}`;
 
-      // Check if we already have this vessel locally
-      if (vesselData.has(vesselId)) {
-        const existingVessel = vesselData.get(vesselId);
+      // Check if we already have this vessel as cloud data
+      if (cloudVesselData.has(vesselId)) {
+        const existingVessel = cloudVesselData.get(vesselId);
 
-        // Check if existing data is from cloud source or if cloud data is fresher
-        const isExistingCloudData = existingVessel.isCloudVessel || cloudVessels.has(vesselId);
-
-
-        if (!isExistingCloudData) {
-          localDataPreferred++;
-          continue;
-        }
-
-        // Both are cloud data, check if new data is fresher
+        // Check if new cloud data is fresher
         const cloudPosTime = cloudVessel.last_position?.timestamp;
         const cloudNavTime = cloudVessel.latest_navigation?.timestamp;
         const cloudTimeStr = cloudPosTime || cloudNavTime;
@@ -496,8 +545,11 @@ module.exports = (app) => {
         processed++;
       }
 
-      // Mark this as a cloud vessel
-      cloudVessels.add(vesselId);
+      // Check if we already have this vessel as local Signal K data - prefer local over cloud
+      if (vesselData.has(vesselId)) {
+        localDataPreferred++;
+        continue; // Skip cloud vessel if we have local data for the same vessel
+      }
 
       // Get the actual timestamp from cloud data
       const cloudPosTime = cloudVessel.last_position?.timestamp;
@@ -517,7 +569,7 @@ module.exports = (app) => {
       if (cloudVessel.name) {
         vesselDataObj.data['name'] = {
           value: cloudVessel.name,
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -525,7 +577,7 @@ module.exports = (app) => {
       if (cloudVessel.call_sign) {
         vesselDataObj.data['communication.callsignVhf'] = {
           value: cloudVessel.call_sign,
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -533,7 +585,7 @@ module.exports = (app) => {
       if (cloudVessel.imo_number) {
         vesselDataObj.data['registrations.imo'] = {
           value: cloudVessel.imo_number,
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -541,7 +593,7 @@ module.exports = (app) => {
       if (cloudVessel.design_length) {
         vesselDataObj.data['design.length'] = {
           value: { overall: cloudVessel.design_length },
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -549,7 +601,7 @@ module.exports = (app) => {
       if (cloudVessel.design_beam) {
         vesselDataObj.data['design.beam'] = {
           value: cloudVessel.design_beam,
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -557,7 +609,7 @@ module.exports = (app) => {
       if (cloudVessel.design_draft) {
         vesselDataObj.data['design.draft'] = {
           value: { maximum: cloudVessel.design_draft },
-          timestamp: new Date().toISOString(),
+          timestamp: actualTimestamp,
           source: 'aisfleet-cloud'
         };
       }
@@ -619,18 +671,16 @@ module.exports = (app) => {
       }
 
       // If updating existing vessel, update its timestamp to the actual cloud data timestamp
-      if (vesselData.has(vesselId)) {
+      if (cloudVesselData.has(vesselId)) {
         vesselDataObj.lastUpdate = new Date(actualTimestamp).getTime();
       }
 
-      // Add vessel to our data store
-      vesselData.set(vesselId, vesselDataObj);
-      processed++;
+      // Add vessel to cloud data store only
+      cloudVesselData.set(vesselId, vesselDataObj);
 
-      // Send data to Signal K but with safe delta format
-      await sendVesselData(vesselDataObj);
+      // No longer send to Signal K - keep cloud vessels separate
 
-      // Small delay every 50 vessels to allow WebSocket processing
+      // Small delay every 50 vessels for processing
       if (processed % 50 === 0) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -638,70 +688,10 @@ module.exports = (app) => {
 
     // Log processing summary
     if (cloudVesselsList.length > 0) {
-      app.debug(`Processed ${cloudVesselsList.length} cloud vessels`);
+      app.debug(`Processed ${cloudVesselsList.length} cloud vessels - added: ${processed}, updated: ${updated}, skipped: ${skipped}, local preferred: ${localDataPreferred}`);
     }
   }
 
-  async function sendVesselData(vessel) {
-    try {
-      // Create a proper Signal K delta message
-      const delta = {
-        context: vessel.context,
-        updates: [{
-          source: {
-            label: 'aisfleet-cloud'
-          },
-          timestamp: new Date().toISOString(),
-          values: []
-        }]
-      };
-
-      // Only inject essential navigation data to avoid schema conflicts
-      const safeSignalKPaths = [
-        'navigation.position',
-        'navigation.speedOverGround',
-        'navigation.courseOverGroundTrue',
-        'navigation.headingTrue',
-        'navigation.rateOfTurn',
-        'mmsi'
-      ];
-
-      for (const [path, pathData] of Object.entries(vessel.data)) {
-        // Only process safe Signal K paths
-        if (!safeSignalKPaths.includes(path)) {
-          continue;
-        }
-
-        // Extract the actual value - could be raw value or Signal K object with .value property
-        let actualValue;
-        if (pathData && typeof pathData === 'object' && pathData.hasOwnProperty('value')) {
-          actualValue = pathData.value;
-        } else {
-          actualValue = pathData;
-        }
-
-
-        // Only add if we have a valid value
-        if (actualValue !== null && actualValue !== undefined) {
-          delta.updates[0].values.push({
-            path: path,
-            value: actualValue
-          });
-        }
-      }
-
-      // Only send changing navigation data - skip static fields like names
-      app.handleMessage(plugin.id, delta);
-
-
-    } catch (error) {
-      if (error.message.includes('Cannot create property')) {
-        app.debug(`Schema error for vessel ${vessel.id} (cloud: ${vessel.isCloudVessel}): ${error.message}`);
-      } else {
-        app.debug(`Failed to inject vessel ${vessel.id}: ${error.message}`);
-      }
-    }
-  }
 
   return plugin;
 };

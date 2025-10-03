@@ -2,7 +2,7 @@
 
 **Expand your maritime awareness beyond your AIS receiver's range**
 
-AIS Fleet integrates cloud-sourced vessel data with your local AIS, giving you a comprehensive view of maritime traffic up to 100 nautical miles around your position.
+Join the global maritime community at [aisfleet.com](https://aisfleet.com) and integrate cloud-sourced vessel data with your local AIS, giving you a comprehensive view of maritime traffic up to 100 nautical miles around your position.
 
 ## 🌊 Key Features
 
@@ -18,10 +18,28 @@ AIS Fleet integrates cloud-sourced vessel data with your local AIS, giving you a
 - **Live Updates**: Automatic position updates via WebSocket
 - **Mobile Friendly**: Responsive design works on all devices
 
+### **AI-Powered Intelligence**
+- **Natural Language Queries**: Ask questions about maritime traffic using our MCP server
+- **Real-time Analysis**: Get instant answers about vessel movements and locations
+- **Smart Filtering**: Find specific vessel types, sizes, or routes with simple questions
+
 ### **Community Powered**
 - **Share & Receive**: Contribute your AIS data to help other mariners
 - **Global Network**: Access vessel data from mariners worldwide
 - **Configurable Range**: Choose your cloud data radius (10-100 nautical miles)
+
+## 🤖 AI-Powered Vessel Intelligence
+
+Connect to our MCP server at [mcp.aisfleet.com/sse](https://mcp.aisfleet.com/sse) and ask natural language questions about maritime traffic:
+
+```
+"Are there any cruise ships leaving Seattle now?"
+"Show me cargo ships near the Panama Canal"
+"What tankers are in the Singapore Strait?"
+"Find fishing vessels off the coast of San Diego"
+"Track the movement of vessel MMSI 367744020"
+"Show me large cargo ships over 200 meters near Singapore"
+```
 
 ## 🚀 Quick Start
 
@@ -29,6 +47,7 @@ AIS Fleet integrates cloud-sourced vessel data with your local AIS, giving you a
 2. **Configure** submission interval and cloud radius in Plugin Config
 3. **Open** the web interface from Signal K's webapp section
 4. **See** both local and cloud vessels on the interactive map
+5. **Join** the community at [aisfleet.com](https://aisfleet.com)
 
 ## ⚠️ Important Safety Notice
 
@@ -46,37 +65,6 @@ AIS Fleet integrates cloud-sourced vessel data with your local AIS, giving you a
 2. Navigate to **App Store**
 3. Search for "AIS Fleet"
 4. Click **Install**
-
-### Manual Installation
-1. Navigate to your Signal K server's plugin directory
-2. Clone or download this plugin:
-   ```bash
-   cd ~/.signalk/node_modules
-   git clone https://github.com/itemir/signalk-aisfleet.git
-   ```
-3. Install dependencies:
-   ```bash
-   cd signalk-aisfleet
-   npm install
-   ```
-4. Restart your Signal K server
-
-### Development Installation
-```bash
-# Clone the repository
-git clone https://github.com/itemir/signalk-aisfleet.git
-cd signalk-aisfleet
-
-# Install dependencies
-npm install
-
-# Link to your Signal K server
-npm link
-cd ~/.signalk
-npm link signalk-aisfleet
-
-# Restart Signal K server
-```
 
 ## Configuration
 
@@ -101,26 +89,17 @@ Access the interactive map through your Signal K server:
 3. **View** all vessels (local + cloud) on the map
 4. **Click** any vessel for detailed information
 
-### Map Features
-
-- **Color-Coded Vessels**: Different colors for cargo, fishing, pleasure, tanker, etc.
-- **Directional Icons**: Moving vessels show heading arrows, stationary vessels show circles
-- **Vessel Details**: Click any vessel for name, MMSI, position, speed, and dimensions
-- **Filter by Type**: Show/hide different vessel categories
-- **Real-Time Updates**: Vessels move as new data arrives
-- **Multiple Views**: Switch between street map and satellite imagery
-
 ## 🔄 How It Works
 
 1. **Collect**: Your local AIS data flows through Signal K
-2. **Share**: Plugin periodically submits your data to the community
-3. **Receive**: Fetch nearby vessels from the cloud (within your configured radius)
+2. **Receive**: Fetch nearby vessels from the cloud (within your configured radius)
+3. **Share**: Plugin periodically submits your data to the community
 4. **Display**: All vessels appear together in Signal K and the web map
-5. **Update**: Real-time position updates keep everything current
+5. **AI**: Gives you a remote MCP server through https://mcp.aisfleet.com/sse so you can integrate it with your favorite LLM (e.g. "Are there any cruise ships leaving Seattle now?" or "Show me cargo ships near the Panama Canal")
 
 ## 🌐 Community Network
 
-By using AIS Fleet, you become part of a collaborative network of mariners sharing AIS data. Your contributions help create a comprehensive picture of maritime traffic for everyone.
+By using AIS Fleet, you become part of a collaborative network of mariners sharing AIS data. Visit [aisfleet.com](https://aisfleet.com) to explore the global vessel database and your contributions help create a comprehensive picture of maritime traffic for everyone.
 
 ## 📋 Requirements
 
@@ -145,6 +124,3 @@ By using AIS Fleet, you become part of a collaborative network of mariners shari
 - Visit Signal K community forums
 - Report issues on the GitHub repository
 
----
-
-*Part of the Signal K ecosystem - Open source data exchange for marine applications*

@@ -146,22 +146,36 @@ class MarineHubApp {
         this.initLegendToggle();
         await this.loadAllVessels(); // Load all vessel data first
         this.initWebSocket();
+        this.startCloudVesselRefresh(); // Periodic refresh for cloud vessels
         this.updateStatus('Loading vessel data...', false);
     }
 
     async loadAllVessels() {
         try {
             this.updateStatus('Loading vessel data...', false);
-            const response = await fetch('/signalk/v1/api/vessels');
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+
+            // Load Signal K vessels
+            const signalKResponse = await fetch('/signalk/v1/api/vessels');
+            if (!signalKResponse.ok) {
+                throw new Error(`HTTP ${signalKResponse.status}`);
+            }
+            const signalKVesselData = await signalKResponse.json();
+
+            // Load cloud vessels
+            let cloudVesselData = {};
+            try {
+                const cloudResponse = await fetch('/plugins/aisfleet/cloud-vessels');
+                if (cloudResponse.ok) {
+                    cloudVesselData = await cloudResponse.json();
+                }
+            } catch (error) {
+                console.log('Could not load cloud vessels (this is normal if none available):', error);
             }
 
-            const vesselData = await response.json();
             let vesselCount = 0;
 
-            // Process each vessel in the response
-            Object.entries(vesselData).forEach(([vesselId, data]) => {
+            // Process Signal K vessels
+            Object.entries(signalKVesselData).forEach(([vesselId, data]) => {
                 if (vesselId === 'self') return; // Skip self, we'll handle it separately
 
                 // Initialize vessel with complete data
@@ -170,7 +184,36 @@ class MarineHubApp {
                     context: `vessels.${vesselId}`,
                     data: data,
                     marker: null,
-                    lastUpdate: Date.now() // Current time as initial timestamp
+                    source: 'signalk' // Mark as Signal K vessel
+                };
+
+                this.vessels.set(vesselId, vessel);
+
+                // Display vessel on map if it has position data
+                const position = this.getValue(vessel.data.navigation?.position);
+                if (position && position.latitude && position.longitude) {
+                    this.updateVesselOnMap(vessel);
+                    vesselCount++;
+                }
+            });
+
+            // Process cloud vessels - only if not already in Signal K data
+            Object.entries(cloudVesselData).forEach(([vesselId, data]) => {
+                // Skip if we already have this vessel from Signal K data (local takes precedence)
+                if (this.vessels.has(vesselId)) {
+                    return;
+                }
+
+                // Convert flat dotted notation to nested objects for cloud vessels
+                const nestedData = this.convertDottedToNested(data);
+
+                // Initialize vessel with complete data
+                const vessel = {
+                    id: vesselId,
+                    context: `vessels.${vesselId}`,
+                    data: nestedData,
+                    marker: null,
+                    source: 'cloud' // Mark as cloud vessel
                 };
 
                 this.vessels.set(vesselId, vessel);
@@ -184,7 +227,7 @@ class MarineHubApp {
             });
 
             this.updateVesselCount();
-            this.updateStatus(`Loaded ${vesselCount} vessels`, true);
+            this.updateStatus(`Loaded ${vesselCount} vessels (Signal K + Cloud)`, true);
 
         } catch (error) {
             console.error('Failed to load vessel data:', error);
@@ -192,6 +235,59 @@ class MarineHubApp {
         }
     }
 
+    startCloudVesselRefresh() {
+        // Refresh cloud vessels every 5 minutes
+        setInterval(async () => {
+            try {
+                const cloudResponse = await fetch('/plugins/aisfleet/cloud-vessels');
+                if (cloudResponse.ok) {
+                    const cloudVesselData = await cloudResponse.json();
+
+                    // Update existing cloud vessels and add new ones
+                    Object.entries(cloudVesselData).forEach(([vesselId, data]) => {
+                        // Convert flat dotted notation to nested objects for cloud vessels
+                        const nestedData = this.convertDottedToNested(data);
+                        const existingVessel = this.vessels.get(vesselId);
+
+                        if (existingVessel && existingVessel.source === 'cloud') {
+                            // Update existing cloud vessel
+                            existingVessel.data = nestedData;
+
+                            // Update map if position changed
+                            const position = this.getValue(nestedData.navigation?.position);
+                            if (position && position.latitude && position.longitude) {
+                                this.updateVesselOnMap(existingVessel);
+                            }
+                        } else if (existingVessel && existingVessel.source === 'signalk') {
+                            // Skip - local Signal K data takes precedence over cloud data
+                            return;
+                        } else if (!existingVessel) {
+                            // Add new cloud vessel
+                            const vessel = {
+                                id: vesselId,
+                                context: `vessels.${vesselId}`,
+                                data: nestedData,
+                                marker: null,
+                                source: 'cloud'
+                            };
+
+                            this.vessels.set(vesselId, vessel);
+
+                            // Display on map if it has position data
+                            const position = this.getValue(nestedData.navigation?.position);
+                            if (position && position.latitude && position.longitude) {
+                                this.updateVesselOnMap(vessel);
+                            }
+                        }
+                    });
+
+                    this.updateVesselCount();
+                }
+            } catch (error) {
+                console.log('Failed to refresh cloud vessels:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+    }
 
     initWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -263,7 +359,7 @@ class MarineHubApp {
                 context: data.context,
                 data: {},
                 marker: null,
-                lastUpdate: Date.now()
+                source: 'signalk' // New vessels from WebSocket are Signal K vessels
             };
             this.vessels.set(vesselId, vessel);
 
@@ -273,9 +369,7 @@ class MarineHubApp {
             }
         }
 
-        // Process delta updates - merge into existing data and find the latest actual data timestamp
-        let latestDataTimestamp = vessel.lastUpdate || 0; // Start with existing timestamp and only update if we find newer data
-
+        // Process delta updates - merge into existing data
         data.updates.forEach(update => {
             if (!update.values) return;
 
@@ -293,18 +387,13 @@ class MarineHubApp {
                         current = current[pathParts[i]];
                     }
 
-                    // Set the value in Signal K format
+                    // Set the value in Signal K format with actual timestamp
                     const lastPart = pathParts[pathParts.length - 1];
                     current[lastPart] = {
                         value: value.value,
-                        source: update.source
+                        source: update.source,
+                        timestamp: update.timestamp // Store the actual AIS timestamp
                     };
-
-                    // Update latest data timestamp from the actual AIS message reception time
-                    if (update.timestamp) {
-                        const updateTime = new Date(update.timestamp).getTime();
-                        latestDataTimestamp = Math.max(latestDataTimestamp, updateTime);
-                    }
 
                     // Track if position was updated
                     if (value.path === 'navigation.position') {
@@ -325,9 +414,6 @@ class MarineHubApp {
                 }
             });
         });
-
-        // Set the vessel's lastUpdate to the actual latest data timestamp, not current time
-        vessel.lastUpdate = latestDataTimestamp;
 
         // Update vessel marker and popup if position changed or if this is a new vessel
         if (hasPositionUpdate || !vessel.marker) {
@@ -551,6 +637,57 @@ class MarineHubApp {
         return result;
     }
 
+    // Helper function to get the latest timestamp from vessel data
+    getLatestTimestamp(vessel) {
+        let latestTimestamp = 0;
+
+        const findLatestTimestamp = (obj) => {
+            if (obj && typeof obj === 'object') {
+                if (obj.timestamp) {
+                    const ts = new Date(obj.timestamp).getTime();
+                    if (!isNaN(ts)) latestTimestamp = Math.max(latestTimestamp, ts);
+                }
+                // Recursively check nested objects
+                Object.values(obj).forEach(value => {
+                    if (value && typeof value === 'object') {
+                        findLatestTimestamp(value);
+                    }
+                });
+            }
+        };
+
+        if (vessel.data) {
+            findLatestTimestamp(vessel.data);
+        }
+
+        return latestTimestamp || null;
+    }
+
+    // Helper function to format relative time
+    formatRelativeTime(timestamp) {
+        if (!timestamp) return 'Unknown';
+
+        const now = Date.now();
+        const diff = now - timestamp;
+
+        if (diff < 0) return 'Just now'; // Future timestamp
+
+        const seconds = Math.floor(diff / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (seconds < 60) {
+            return seconds <= 1 ? 'Just now' : `${seconds} seconds ago`;
+        } else if (minutes < 60) {
+            return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+        } else if (hours < 24) {
+            return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+        } else {
+            return days === 1 ? '1 day ago' : `${days} days ago`;
+        }
+    }
+
     // Helper function to get value from either direct value or Signal K value object
     getValue(obj) {
         if (obj === null || obj === undefined) return undefined;
@@ -558,6 +695,29 @@ class MarineHubApp {
             return obj.value;
         }
         return obj;
+    }
+
+    // Helper function to convert dotted notation to nested objects for cloud vessels
+    convertDottedToNested(flatData) {
+        const nested = {};
+
+        Object.entries(flatData).forEach(([key, value]) => {
+            const parts = key.split('.');
+            let current = nested;
+
+            // Navigate to the correct nested position
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]]) {
+                    current[parts[i]] = {};
+                }
+                current = current[parts[i]];
+            }
+
+            // Set the final value
+            current[parts[parts.length - 1]] = value;
+        });
+
+        return nested;
     }
 
     // Helper function to convert decimal degrees to navigation notation (DD°MM.mmm')
@@ -596,9 +756,12 @@ class MarineHubApp {
 
         // Debug removed for cleaner console
 
-        // Format last updated time
-        const lastUpdated = new Date(vessel.lastUpdate).toLocaleString();
+        // Format last updated time - get from actual data timestamps
+        const latestTimestamp = this.getLatestTimestamp(vessel);
+        const lastUpdated = this.formatRelativeTime(latestTimestamp);
 
+        // Determine data source
+        const dataSource = vessel.source === 'cloud' ? 'AIS Fleet' : 'Local AIS';
 
         return `
             <div class="vessel-popup">
@@ -624,6 +787,9 @@ class MarineHubApp {
                     ${(length && typeof length === 'number') ? `<div class="label">Length:</div><div class="value">${length.toFixed(1)}m</div>` : ''}
                     ${(beam && typeof beam === 'number') ? `<div class="label">Beam:</div><div class="value">${beam.toFixed(1)}m</div>` : ''}
                     ${(draft && typeof draft === 'number') ? `<div class="label">Draft:</div><div class="value">${draft.toFixed(1)}m</div>` : ''}
+
+                    <div class="label">Source:</div>
+                    <div class="value">${dataSource}</div>
 
                     <div class="label">Last Updated:</div>
                     <div class="value">${lastUpdated}</div>
@@ -715,14 +881,14 @@ class MarineHubApp {
 
         let removedCount = 0;
         this.vessels.forEach((vessel, id) => {
-            if (now - vessel.lastUpdate > maxAge) {
+            const latestTimestamp = this.getLatestTimestamp(vessel);
+            if (latestTimestamp && (now - latestTimestamp > maxAge)) {
                 console.log(`Removing stale vessel ${id} (${this.getValue(vessel.data.name) || 'Unknown'})`);
 
                 // Remove from map
                 if (vessel.marker) {
                     this.map.removeLayer(vessel.marker);
                 }
-
 
                 // Remove from vessels
                 this.vessels.delete(id);
