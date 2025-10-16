@@ -1,6 +1,6 @@
 {
   "name": "aisfleet",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Join the global AIS community: monitor vessels within 100 nm, strengthen the shared network by contributing your own data, and unlock enhanced insights with AI and MCP support via https://mcp.aisfleet.com/sse",
   "keywords": [
     "signalk",
