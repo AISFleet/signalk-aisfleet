@@ -742,8 +742,19 @@ class MarineHubApp {
         const name = this.getValue(vessel.data.name) ||
                     this.getValue(vessel.data.shipname) ||
                     this.getValue(vessel.data.design?.name) || 'Unknown';
-        const mmsi = this.getValue(vessel.data.mmsi) ||
-                    this.getValue(vessel.data.navigation?.gnss?.mmsi) || 'Unknown';
+
+        // Extract MMSI from data or vessel ID as fallback
+        let mmsi = this.getValue(vessel.data.mmsi);
+
+        // If no MMSI found in data, extract from vessel ID (for cloud vessels)
+        if (!mmsi && vessel.id && vessel.id.includes('mmsi:')) {
+            const mmsiMatch = vessel.id.match(/mmsi:(\d+)/);
+            if (mmsiMatch) {
+                mmsi = mmsiMatch[1];
+            }
+        }
+
+        mmsi = mmsi || 'Unknown';
         const position = this.getValue(vessel.data.navigation?.position);
         const cog = this.getValue(vessel.data.navigation?.courseOverGroundTrue);
         const sog = this.getValue(vessel.data.navigation?.speedOverGround);
